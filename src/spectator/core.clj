@@ -78,9 +78,6 @@
         (debug/debug @regions))))
 
 
-(def debug-toggle debug/debug-toggle)
-
-
 (defn define-region
   "Create region and return the region value atom."
   [id params]
@@ -102,13 +99,19 @@
   (list 'def id (list define-region (keyword id) (apply hash-map params))))
 
 
-(defn start []
-  (reset! tracking true)
-  (future
-   (try (while @tracking (process-next-frame))
-        (catch Exception e
-          (spit "/tmp/spectator-error.log" e)))))
+(defn start [& params]
+  (let [{:keys [debug]} (->> params
+                             (apply hash-map)
+                             (merge {:debug true}))]
+    (when debug
+      (debug/debug-toggle true))
+    (reset! tracking true)
+    (future
+     (try (while @tracking (process-next-frame))
+          (catch Exception e
+            (spit "/tmp/spectator-error.log" e))))))
 
 
 (defn stop []
+  (debug/debug-toggle false)
   (reset! tracking false))
