@@ -81,23 +81,25 @@
 (def debug-toggle debug/debug-toggle)
 
 
-(defn get-region-value [id]
-  @(:value (@regions id)))
-
-
-(defn define-region [id params]
+(defn define-region
+  "Create region and return the region value atom."
+  [id params]
   (assert (every? (into #{} (keys params))
                   #{:contours :update})
           (str "define-region required fields: contours update"))
-  (let [region (-> params
+  (let [value-atom (atom 0)
+        region (-> params
                    (update :contours create-contours)
-                   (assoc :value (atom 0))
+                   (assoc :value value-atom)
                    map->Region)]
-    (swap! regions assoc id region)))
+    (swap! regions assoc id region)
+    value-atom))
 
 
-(defmacro defregion [id & params]
-  (list define-region (keyword id) (apply hash-map params)))
+(defmacro defregion
+  "Create region and provide the region value atom as a var of the given id."
+  [id & params]
+  (list 'def id (list define-region (keyword id) (apply hash-map params))))
 
 
 (defn start []
