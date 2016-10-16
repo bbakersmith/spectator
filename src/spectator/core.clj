@@ -103,8 +103,7 @@
   (let [{:keys [debug]} (->> params
                              (apply hash-map)
                              (merge {:debug true}))]
-    (when debug
-      (debug/debug-toggle true))
+    (when debug (debug/show))
     (reset! tracking true)
     (future
      (try (while @tracking (process-next-frame))
@@ -113,5 +112,5 @@
 
 
 (defn stop []
-  (debug/debug-toggle false)
+  (debug/hide)
   (reset! tracking false))

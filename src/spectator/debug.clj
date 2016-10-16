@@ -6,20 +6,19 @@
            [javax.imageio ImageIO]
            [java.io ByteArrayInputStream]
            [java.util ArrayList])
-  (:require [seesaw.core :refer :all])
+  (:require [seesaw.core :as s])
   (:gen-class))
 
 
 (def debug-status (atom true))
-(def video-player (label))
+(def video-player (s/label))
 
 
 (def debug-frame
-  (-> (frame :title "Spectator Debug"
-             :content video-player
-             :width 640
-             :height 480)
-      show!))
+  (s/frame :title "Spectator Debug"
+           :content video-player
+           :width 640
+           :height 480))
 
 
 (defn- draw-rectangle [mat r]
@@ -57,21 +56,19 @@
 (defn- display-image [mat]
   (let [byte-mat (MatOfByte.)]
     (Highgui/imencode ".jpg" mat byte-mat)
-    (config! video-player :icon (-> byte-mat
-                                    .toArray
-                                    ByteArrayInputStream.
-                                    ImageIO/read
-                                    icon))))
+    (s/config! video-player :icon (-> byte-mat
+                                      .toArray
+                                      ByteArrayInputStream.
+                                      ImageIO/read
+                                      s/icon))))
+(defn show []
+  (s/show! debug-frame)
+  (reset! debug-status true))
 
 
-(defn debug-toggle [on-off]
-  (if on-off
-    (do
-      (show! debug-frame)
-      (reset! debug-status true))
-    (do
-      (hide! debug-frame)
-      (reset! debug-status false))))
+(defn hide []
+  (s/hide! debug-frame)
+  (reset! debug-status false))
 
 
 (defn debug [mat regions]
