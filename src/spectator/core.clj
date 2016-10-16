@@ -58,16 +58,6 @@
   [contours decrement increment value])
 
 
-(defn define-region [id region-map]
-  (assert (every? (into #{} (keys region-map))
-                  #{:contours :decrement :increment})
-          (str "region-map required fields: contours decrement increment"))
-  (let [region (map->Region
-                (merge {:value (atom 0)} region-map))]
-    (swap! regions assoc id region)
-    region))
-
-
 (defn create-contours [tuples]
   (let [a (ArrayList.)
         m (MatOfPoint.)]
@@ -77,10 +67,19 @@
     m))
 
 
+(defn define-region [id params]
+  (assert (every? (into #{} (keys params))
+                  #{:contours :decrement :increment})
+          (str "define-region required fields: contours decrement increment"))
+  (let [region (-> params
+                   (update :contours create-contours)
+                   (assoc :value (atom 0))
+                   map->Region)]
+    (swap! regions assoc id region)))
+
+
 (defmacro defregion [id & params]
-  (list define-region
-        (keyword id)
-        (list update (apply hash-map params) :contours create-contours)))
+  (list define-region (keyword id) (apply hash-map params)))
 
 
 (defn get-region-value [id]
