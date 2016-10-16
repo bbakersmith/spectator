@@ -1,17 +1,10 @@
 (ns spectator.core
   (:import [nu.pattern OpenCV]
-           [org.opencv.core Core CvType Mat MatOfByte MatOfPoint MatOfRect
-            Point Rect Scalar Size]
-           [org.opencv.highgui Highgui VideoCapture]
+           [org.opencv.core Core CvType Mat MatOfPoint Point Rect Scalar Size]
+           [org.opencv.highgui VideoCapture]
            [org.opencv.imgproc Imgproc]
-           [org.opencv.objdetect CascadeClassifier]
-           [java.awt.image BufferedImage]
-           [javax.imageio ImageIO]
-           [java.io ByteArrayInputStream]
            [java.util ArrayList])
-  (:require [seesaw.core :refer :all]
-            [spectator.debug :as debug]
-            [mount.core :as mount])
+  (:require [spectator.debug :as debug])
   (:gen-class))
 
 
@@ -25,7 +18,6 @@
 (def camera (VideoCapture. 0))
 (def motion-mat-prev (atom nil))
 (def regions (atom {}))
-(def tracking (atom false))
 
 
 (defn new-mat []
@@ -76,8 +68,19 @@
     region))
 
 
+(defn create-contours [tuples]
+  (let [a (ArrayList.)
+        m (MatOfPoint.)]
+    (doseq [[x y] tuples]
+      (.add a (Point. x y)))
+    (.fromList m a)
+    m))
+
+
 (defmacro defregion [id & params]
-  (list define-region (keyword id) (apply hash-map params)))
+  (list define-region
+        (keyword id)
+        (list update (apply hash-map params) :contours create-contours)))
 
 
 (defn get-region-value [id]
@@ -96,27 +99,7 @@
         (debug/debug @regions))))
 
 
-(mount/defstate motion-tracker
-  :start (do
-           (reset! tracking true)
-           (future
-            (try (while @tracking (process-next-frame))
-                 (catch Exception e
-                   (spit "/tmp/spectator-error.log" e)))))
-  :stop (reset! tracking false))
-
-
-(defregion test-region
-  :contours (let [a (ArrayList.)
-                  m (MatOfPoint.)]
-              (.add a (Point. 100 100))
-              (.add a (Point. 250 100))
-              (.add a (Point. 100 250))
-              (.fromList m a)
-              m)
-  :decrement #(if (< 0 %)
-                (- % 10)
-                %)
-  :increment (fn [v _] (if (<= v 255)
-                         (+ v 10)
-                         v)))
+(future
+ (try (while true (process-next-frame))
+      (catch Exception e
+        (spit "/tmp/spectator-error.log" e))))
