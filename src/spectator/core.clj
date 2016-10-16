@@ -114,3 +114,6 @@
 (defn stop []
   (debug/hide)
   (reset! tracking false))
+
+
+(defn -main [])
