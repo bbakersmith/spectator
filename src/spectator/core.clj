@@ -67,6 +67,25 @@
     m))
 
 
+(defn process-next-frame []
+  (let [mat (new-mat)
+        _ (.read camera mat)
+        _ (Core/flip mat mat 1)
+        mat (Mat. mat (Rect. 0 0 640 480))]
+    (-> mat
+        preprocess-mat
+        diff-mat
+        increment-regions
+        (debug/debug @regions))))
+
+
+(def debug-toggle debug/debug-toggle)
+
+
+(defn get-region-value [id]
+  @(:value (@regions id)))
+
+
 (defn define-region [id params]
   (assert (every? (into #{} (keys params))
                   #{:contours :decrement :increment})
@@ -80,22 +99,6 @@
 
 (defmacro defregion [id & params]
   (list define-region (keyword id) (apply hash-map params)))
-
-
-(defn get-region-value [id]
-  @(:value (@regions id)))
-
-
-(defn process-next-frame []
-  (let [mat (new-mat)
-        _ (.read camera mat)
-        _ (Core/flip mat mat 1)
-        mat (Mat. mat (Rect. 0 0 640 480))]
-    (-> mat
-        preprocess-mat
-        diff-mat
-        increment-regions
-        (debug/debug @regions))))
 
 
 (future
