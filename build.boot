@@ -8,6 +8,6 @@
 (deftask build []
   (comp (aot :namespace #{'spectator.core})
         (pom :project 'bbakersmith/spectator
-             :version "1.0.0")
+             :version "1.1.0")
         (jar :main 'spectator.core)
         (install)))

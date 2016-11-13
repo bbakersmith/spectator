@@ -16,13 +16,14 @@
 
 
 (def camera (VideoCapture. 0))
-(def motion-mat-prev (atom nil))
+(def motion-reference-mat (atom nil))
+(def presence-reference-mat (atom nil))
 (def regions (atom {}))
 (def tracking (atom false))
 
 
 (defrecord Region
-  [contours update value])
+  [contours diff update value])
 
 
 (defn- new-mat []
@@ -36,25 +37,38 @@
     out))
 
 
-(defn- diff-mat [mat]
-  (when (not @motion-mat-prev)
-    (reset! motion-mat-prev mat))
+(defn- diff-motion-mat [mat]
+  (when (not @motion-reference-mat)
+    (reset! motion-reference-mat mat))
   (let [out (new-mat)]
-    (Core/absdiff mat @motion-mat-prev out)
+    (Core/absdiff mat @motion-reference-mat out)
     (Imgproc/threshold out out 25 255 Imgproc/THRESH_BINARY)
-    (reset! motion-mat-prev mat) ;; comment out to calc on initial frame always
+    (reset! motion-reference-mat mat) ;; comment out to calc on initial frame always
     out))
 
 
-(defn- update-regions [mat]
+(defn- diff-presence-mat [mat]
+  (when (not @presence-reference-mat)
+    (reset! presence-reference-mat mat))
+  (let [out (new-mat)]
+    (Core/absdiff mat @presence-reference-mat out)
+    (Imgproc/threshold out out 25 255 Imgproc/THRESH_BINARY)
+    out))
+
+
+(defn- update-region-diffs [mat k]
   (doseq [[id r] @regions]
     (let [region-mat (new-mat)
           result-mat (new-mat)]
       (Core/fillConvexPoly region-mat (:contours r) (Scalar. 255 0 0))
       (Core/bitwise_and mat region-mat result-mat)
-      ;; TODO provide both :motion and :presence values
-      (swap! (:value r) (:update r) {:motion (Core/countNonZero result-mat)})))
+      (swap! (:diff r) assoc k (Core/countNonZero result-mat))))
   mat)
+
+
+(defn- update-region-values []
+  (doseq [[id r] @regions]
+    (swap! (:value r) (:update r) @(:diff r))))
 
 
 (defn- create-contours [tuples]
@@ -66,16 +80,23 @@
     m))
 
 
+(def debug-layer (atom :motion))
+
+
 (defn- process-next-frame []
   (let [mat (new-mat)
         _ (.read camera mat)
         _ (Core/flip mat mat 1)
-        mat (Mat. mat (Rect. 0 0 640 480))]
-    (-> mat
-        preprocess-mat
-        diff-mat
-        update-regions
-        (debug/debug @regions))))
+        mat (preprocess-mat (Mat. mat (Rect. 0 0 640 480)))
+        motion-diff (diff-motion-mat mat)
+        presence-diff (diff-presence-mat mat)]
+    (update-region-diffs motion-diff :motion)
+    (update-region-diffs presence-diff :presence)
+    (update-region-values)
+    (case @debug-layer
+      :motion (debug/debug motion-diff @regions)
+      :presence (debug/debug presence-diff @regions)
+      :raw (debug/debug mat @regions))))
 
 
 (defn define-region
@@ -84,10 +105,12 @@
   (assert (every? (into #{} (keys params))
                   #{:contours :update})
           (str "define-region required fields: contours update"))
-  (let [value-atom (atom 0)
+  (let [diff-atom (atom {:motion 0 :presence 0})
+        value-atom (atom 0)
         region (-> params
                    (update :contours create-contours)
-                   (assoc :value value-atom)
+                   (assoc :diff diff-atom
+                          :value value-atom)
                    map->Region)]
     (swap! regions assoc id region)
     value-atom))
@@ -99,6 +122,10 @@
   (list 'def id (list define-region (keyword id) (apply hash-map params))))
 
 
+(defn reset-presence []
+  (reset! presence-reference-mat nil))
+
+
 (defn start [& params]
   (let [{:keys [debug]} (->> params
                              (apply hash-map)
@@ -108,7 +135,10 @@
     (future
      (try (while @tracking (process-next-frame))
           (catch Exception e
-            (spit "/tmp/spectator-error.log" e))))))
+            (let [stack-trace (clojure.string/join
+                               "\n" (map str (.getStackTrace e)))]
+              (spit "/tmp/spectator-error.log"
+                    (str e "\n" stack-trace))))))))
 
 
 (defn stop []
