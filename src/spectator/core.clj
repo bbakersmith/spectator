@@ -20,6 +20,8 @@
 (def presence-reference-mat (atom nil))
 (def regions (atom {}))
 (def tracking (atom false))
+(def motion-threshold (atom 25))
+(def presence-threshold (atom 25))
 
 
 (defrecord Region
@@ -42,7 +44,7 @@
     (reset! motion-reference-mat mat))
   (let [out (new-mat)]
     (Core/absdiff mat @motion-reference-mat out)
-    (Imgproc/threshold out out 25 255 Imgproc/THRESH_BINARY)
+    (Imgproc/threshold out out @motion-threshold 255 Imgproc/THRESH_BINARY)
     (reset! motion-reference-mat mat) ;; comment out to calc on initial frame always
     out))
 
@@ -52,7 +54,7 @@
     (reset! presence-reference-mat mat))
   (let [out (new-mat)]
     (Core/absdiff mat @presence-reference-mat out)
-    (Imgproc/threshold out out 25 255 Imgproc/THRESH_BINARY)
+    (Imgproc/threshold out out @presence-threshold 255 Imgproc/THRESH_BINARY)
     out))
 
 
@@ -106,7 +108,7 @@
                   #{:contours :update})
           (str "define-region required fields: contours update"))
   (let [diff-atom (atom {:motion 0 :presence 0})
-        value-atom (atom 0)
+        value-atom (atom (or (:value params) 0))
         region (-> params
                    (update :contours create-contours)
                    (assoc :diff diff-atom
